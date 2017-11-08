@@ -1,7 +1,7 @@
 --checks for 16 slot bags
 local itemset = {}
 --local addonname = "f2p"
-
+--GetBuybackItemInfo
 --[[
 local fishcookhorde={}
 Stag eye
@@ -10,6 +10,9 @@ Bloaed Frog
 Alliance Decoy Kit
 69956, --Blind Cavefish
 ]]
+
+local _
+local at_vendor = false
 itemset = {
 	[1] = 40533, --"Walnut Stock",
 	[2] = 38426, --"Eternium Thread",
@@ -109,15 +112,15 @@ f2pDragFrame:SetScript("OnDragStop", f2pDragFrame.StopMovingOrSizing)
 local texture=f2pDragFrame:CreateTexture(nil,"ARTWORK")
 texture:SetAllPoints(f2pDragFrame)
 texture:SetColorTexture(0, 0.75, 1, 0.7)
-
+local f2sellbacknFS
 local function createmoneyframe()
 --Total Money Parent Frame
-local f2pTotalMoneyParent = CreateFrame("Frame", "f2pTotalMoneyParent", f2pDragFrame)
+	local f2pTotalMoneyParent = CreateFrame("Frame", "f2pTotalMoneyParent", f2pDragFrame)
 	f2pTotalMoneyParent:SetWidth(100)
 	f2pTotalMoneyParent:SetHeight(28)
 	f2pTotalMoneyParent:ClearAllPoints()
 	f2pTotalMoneyParent:SetPoint("TOPLEFT", f2pDragFrame, "TOPLEFT", 30, -10)
-local f2pTotalMoney = CreateFrame("Frame", "f2pTotalMoney", f2pDragFrame,"TooltipMoneyFrameTemplate")
+	local f2pTotalMoney = CreateFrame("Frame", "f2pTotalMoney", f2pDragFrame,"TooltipMoneyFrameTemplate")
 	--f2pTotalMoney:RegisterEvent("PLAYER_LOGIN")
 	f2pTotalMoney:RegisterEvent("PLAYER_ENTERING_WORLD")
 	--f2pTotalMoney:SetWidth(200)
@@ -131,17 +134,60 @@ local f2pTotalMoney = CreateFrame("Frame", "f2pTotalMoney", f2pDragFrame,"Toolti
 	f2pTotalMoney.f2pTexture:SetAllPoints(f2pTotalMoney)
 	--f2pTotalMoney.f2pTexture:SetColorTexture(0.3, 0.75, 0.1, 1)--Optional Color
 	f2pTotalMoney.f2pTexture:SetColorTexture(0.15, 0.15, 0.15, 0.7)
+	
+	
+	f2sellbacknFS = f2pDragFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	--f2sellbacknFS:SetText('To see money required to\n buy back the items, visit a vendor')
+	f2sellbacknFS:SetText('Visit a vendor')
+	f2sellbacknFS:SetPoint("TOPRIGHT", -10, -10)
+	f2sellbacknFS:SetFont("Fonts\\FRIZQT__.TTF", 14)
 end
 
 local clicked_tabard
+
+local function equip_and_track()
+	EquipItemByName(clicked_tabard)
+	local temp = myreps[tabarditems[clicked_tabard]]
+	--print(temp)
+	local factionIndex = 1
+	local lastFactionName
+	repeat
+		local name, description, standingID, barMin, barMax, barValue, atWarWith, canToggleAtWar, isHeader, isCollapsed, hasRep, isWatched, isChild, factionID, hasBonusRepGain, canBeLFGBonus = GetFactionInfo(factionIndex)
+		if name == lastFactionName then break end
+		lastFactionName  = name
+		if factionID == temp then
+			--print(name,factionID,temp)
+			SetWatchedFactionIndex(factionIndex)
+			--print(factionIndex)
+		end
+		factionIndex = factionIndex + 1
+	until factionIndex > 200
+	clicked_tabard = nil
+end
+
 local regen_enabled = "PLAYER_REGEN_ENABLED"
 local tabard_equipper = CreateFrame('Frame')
 tabard_equipper:SetScript('OnEvent', function(self, event, ...)
 	if event == regen_enabled then
-		EquipItemByName(clicked_tabard)
+		equip_and_track()
 		self:UnregisterEvent(event)
 	end
 end)
+
+local write_clicking
+
+local function verify_tabard(tabardID)
+	if IsEquippedItem(tabardID) then
+		print(tabardlink, "is already equipped")
+	else
+		if InCombatLockdown() then
+			print(tabardlink,"will be equipped upon leaving combat.")
+			tabard_equipper:RegisterEvent(regen_enabled)
+		else
+			equip_and_track()
+		end
+	end
+end
 
 local function createbagframe(itemID)
 	local _, itemLink, _,_,_,_,_,_,_,itemTexture,vndrprc = GetItemInfo(itemID)
@@ -201,8 +247,9 @@ local function createbagframe(itemID)
 				local _,tabardlink =  GetItemInfo(tabardID)
 				local itemcount = GetItemCount(tabardID, false, false)
 				local itemcount_bank = GetItemCount(tabardID, true, false)
-				print("equip",itemLink,tabardlink,itemcount) --debug
+				--print("equip",itemLink,tabardlink,itemcount) --debug
 				if clicked_tabard ~= tabardID then
+					write_clicking = true
 					clicked_tabard = tabardID
 					if itemcount_bank  == 0 then
 						print("You need to buy",tabardlink,"first")
@@ -210,21 +257,18 @@ local function createbagframe(itemID)
 						if itemcount == 0 then
 							print(tabardlink,"isn't in bags")
 						else
-							if IsEquippedItem(tabardID) then
-								print(tabardlink, "is already equipped")
-							else
-							--also needs check whether it already is equipped
-								if InCombatLockdown() then
-									print(tabardlink,"will be equipped upon leaving combat.")
-									tabard_equipper:RegisterEvent(regen_enabled)
-								else
-									EquipItemByName(tabardID)
-								end
-							end
+							verify_tabard(tabardID)
 						end
 					end
 				else
-					print(tabardlink,"already clicked")
+					if IsEquippedItem(tabardID) then
+						if write_clicking then
+							print(tabardlink,"already clicked")
+							write_clicking = false
+						end
+					else
+						verify_tabard(tabardID)
+					end
 				end
 			end
 		end)
@@ -317,6 +361,7 @@ local wait_bag = {}
 local cache_writer_bag = CreateFrame('Frame')
 cache_writer_bag:SetScript('OnEvent', function(self, event, ...)
 	if event == info_received then
+		--print("received",...)
 		-- the info is now downloaded and cached
 		local itemID = ...
 		if wait_bag[itemID] then
@@ -444,11 +489,25 @@ local function createoneframe(itemID)
 
 
 local trialmoneycap = 10*100*100
+local numbuybackitems
+local summm
+local price
 local function updateCount()
 	--local money = GetMoney()
 	--local countbank = {}
 	--local countbag = {}
 	--print("I have",money,GetCoinTextureString(money))
+	--f2pellbacknFS:SetText('some m oney')
+	if at_vendor then
+		numbuybackitems = GetNumBuybackItems()
+		--print(numbuybackitems)
+		summm = 0
+		for index = 1, numbuybackitems do
+			_, _, price = GetBuybackItemInfo(index)
+			summm = summm + price
+		end
+		f2sellbacknFS:SetText(GetCoinTextureString(summm))
+	end
 	for index = 1, numIte, 1 do
 		local itemID = itemset[index]
 		
@@ -516,12 +575,22 @@ cache_writer:SetScript('OnEvent', function(self, event, ...)
 			--print(itemID,"received")
 			createoneframe(itemID)
 			wait[itemID] = nil
+			--print(#wait)
 			if wait == {} then updateCount();self:UnregisterEvent(event) end --test
 		end
 	end
+	if event == "MERCHANT_SHOW" then
+		at_vendor = true
+		--self:UnregisterEvent(event)
+		updateCount()
+	end
+	if event == "MERCHANT_CLOSED" then
+		at_vendor = false
+	end
 end)
 cache_writer:RegisterEvent(info_received)
-
+cache_writer:RegisterEvent("MERCHANT_SHOW")
+cache_writer:RegisterEvent("MERCHANT_CLOSED")
 local function createFrames()
 	--f2pInitFrame:RegisterEvent("BAG_UPDATE_DELAYED")
 
@@ -540,6 +609,8 @@ end
 
 local f2pInitFrame = CreateFrame("Frame", "f2pInitFrame", f2pDragFrame)
 local init_event = "PLAYER_LOGIN"
+--local init_event = "BAG_UPDATE_DELAYED"
+--local init_event = "PLAYER_ENTERING_WORLD"
 f2pInitFrame:RegisterEvent(init_event)
 f2pInitFrame:SetScript("OnEvent", function(self, event, ...)
 	if event == init_event then
@@ -549,6 +620,29 @@ f2pInitFrame:SetScript("OnEvent", function(self, event, ...)
 		self:RegisterEvent("PLAYER_MONEY")
 		createmoneyframe()
 		createbagFrames()
+		--[[
+		if wait == {} then 
+			updateCount()
+			--print("wait")
+		else
+			for i in pairs(wait) do
+				print(i)
+			end
+			print("asd")
+		end
+		--]]
+		--[[
+		if wait_bag == {} then
+			updateBagCount()
+			--print("wait_bag")
+		else
+			for i in pairs(wait_bag) do
+				print(i)
+			end
+			print("dsa")
+		end
+		--]]
+		self:UnregisterEvent(event)
 	end
 	--if event == "BAG_UPDATE" then
 	if event == "BAG_UPDATE_DELAYED" or event == "UPDATE_FACTION" or event  == "PLAYER_MONEY" then
@@ -557,4 +651,3 @@ f2pInitFrame:SetScript("OnEvent", function(self, event, ...)
 		updateBagCount()
 	end
 end)
-
