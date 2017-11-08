@@ -368,7 +368,11 @@ cache_writer_bag:SetScript('OnEvent', function(self, event, ...)
 			--print(itemID,"received bagID")
 			createbagframe(itemID)
 			wait_bag[itemID] = nil
-			if wait_bag == {} then updateBagCount();self:UnregisterEvent(event) end --test
+			if not next(wait_bag) then 
+				updateBagCount()
+				self:UnregisterEvent(event)
+				--print("cahce writer bag")
+			end --test
 		end
 	end
 end)
@@ -576,7 +580,11 @@ cache_writer:SetScript('OnEvent', function(self, event, ...)
 			createoneframe(itemID)
 			wait[itemID] = nil
 			--print(#wait)
-			if wait == {} then updateCount();self:UnregisterEvent(event) end --test
+			if not next(wait) then 
+				updateCount()
+				self:UnregisterEvent(event)
+				--print("cache writer")
+			end --test
 		end
 	end
 	if event == "MERCHANT_SHOW" then
