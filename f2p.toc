@@ -1,5 +1,5 @@
-## Interface: 70200
-## Version: 720b100
+## Interface: 70300
+## Version: 730b100
 ## Title: f2p
 ## Authors: Kakjens
 ## Notes: Reputation, reputation bag and money manager for trial accounts
