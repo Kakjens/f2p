@@ -144,11 +144,10 @@ local function createmoneyframe()
 end
 
 local clicked_tabard
-
-local function equip_and_track()
-	EquipItemByName(clicked_tabard)
-	local temp = myreps[tabarditems[clicked_tabard]]
-	--print(temp)
+local INVSLOT_TABARD = INVSLOT_TABARD
+local function track_rep()
+	local tabardid = GetInventoryItemID("player", INVSLOT_TABARD)
+	local temp = myreps[tabarditems[tabardid]]
 	local factionIndex = 1
 	local lastFactionName
 	repeat
@@ -162,21 +161,36 @@ local function equip_and_track()
 		end
 		factionIndex = factionIndex + 1
 	until factionIndex > 200
-	clicked_tabard = nil
 end
+local tabard_checker = CreateFrame('Frame')
+tabard_checker:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+tabard_checker:RegisterEvent("PLAYER_ENTERING_WORLD")
+tabard_checker:SetScript('OnEvent', function(self, event, slot,hasItem)
+	if event == "PLAYER_EQUIPMENT_CHANGED" then
+		if slot == INVSLOT_TABARD then
+			if hasItem then
+				track_rep()
+			end
+		end
+	else --if event == "PLAYER_ENTERING_WORLD"
+		track_rep()
+	end
+end)
+
+
 
 local regen_enabled = "PLAYER_REGEN_ENABLED"
 local tabard_equipper = CreateFrame('Frame')
 tabard_equipper:SetScript('OnEvent', function(self, event, ...)
 	if event == regen_enabled then
-		equip_and_track()
+		EquipItemByName(clicked_tabard)
 		self:UnregisterEvent(event)
 	end
 end)
 
 local write_clicking
 
-local function verify_tabard(tabardID)
+local function verify_tabard(tabardID,tabardlink)
 	if IsEquippedItem(tabardID) then
 		print(tabardlink, "is already equipped")
 	else
@@ -184,7 +198,7 @@ local function verify_tabard(tabardID)
 			print(tabardlink,"will be equipped upon leaving combat.")
 			tabard_equipper:RegisterEvent(regen_enabled)
 		else
-			equip_and_track()
+			EquipItemByName(clicked_tabard)
 		end
 	end
 end
@@ -245,6 +259,7 @@ local function createbagframe(itemID)
 				local index = tabarditems[itemID]
 				local tabardID = mytabards[index]
 				local _,tabardlink =  GetItemInfo(tabardID)
+				--print(tabardID,tabardlink)
 				local itemcount = GetItemCount(tabardID, false, false)
 				local itemcount_bank = GetItemCount(tabardID, true, false)
 				--print("equip",itemLink,tabardlink,itemcount) --debug
@@ -257,7 +272,7 @@ local function createbagframe(itemID)
 						if itemcount == 0 then
 							print(tabardlink,"isn't in bags")
 						else
-							verify_tabard(tabardID)
+							verify_tabard(tabardID,tabardlink)
 						end
 					end
 				else
@@ -267,7 +282,7 @@ local function createbagframe(itemID)
 							write_clicking = false
 						end
 					else
-						verify_tabard(tabardID)
+						verify_tabard(tabardID,tabardlink)
 					end
 				end
 			end
